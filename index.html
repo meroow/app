@@ -36,6 +36,7 @@
             <button class="mode" data-mode="acceptance">Приёмка</button>
           </div>
           <div class="panel-actions">
+            <button id="startReconciliationBtn" class="secondary">Начать сверку</button>
             <button id="addItemBtn">Добавить товар</button>
             <button id="generateTransferBtn" class="secondary">Сформировать перемещение</button>
           </div>
@@ -71,12 +72,7 @@
       <section id="historyView" class="panel hidden">
         <div class="history-filters">
           <label for="historyWorkshop">Цех:</label>
-          <select id="historyWorkshop">
-            <option value="all">Все</option>
-            <option value="sushi">Суши</option>
-            <option value="panasia">Паназия</option>
-            <option value="pizza">Пицца</option>
-          </select>
+          <select id="historyWorkshop"></select>
 
           <label for="historySearch">Поиск:</label>
           <input id="historySearch" type="search" placeholder="Введите товар" />

@@ -2,16 +2,16 @@ const STORAGE_KEY = 'workshop-procurement-v1';
 const USER_KEY = 'workshop-procurement-user';
 
 const users = [
-  { id: 'chef-sushi-1', name: 'Старший Суши #1', workshops: ['sushi'] },
-  { id: 'chef-sushi-2', name: 'Старший Суши #2', workshops: ['sushi'] },
-  { id: 'chef-panasia-1', name: 'Старший Паназия #1', workshops: ['panasia'] },
-  { id: 'chef-panasia-2', name: 'Старший Паназия #2', workshops: ['panasia'] },
-  { id: 'chef-pizza-1', name: 'Старший Пицца #1', workshops: ['pizza'] },
-  { id: 'chef-pizza-2', name: 'Старший Пицца #2', workshops: ['pizza'] },
-  { id: 'chef-pizza-3', name: 'Старший Пицца #3', workshops: ['pizza'] },
-  { id: 'storekeeper-1', name: 'Кладовщик #1', workshops: ['sushi', 'panasia', 'pizza'] },
-  { id: 'storekeeper-2', name: 'Кладовщик #2', workshops: ['sushi', 'panasia', 'pizza'] },
-  { id: 'admin', name: 'Администратор', workshops: ['sushi', 'panasia', 'pizza'] }
+  { id: 'chef-sushi-1', name: 'Старший Суши #1', role: 'chef', workshops: ['sushi'] },
+  { id: 'chef-sushi-2', name: 'Старший Суши #2', role: 'chef', workshops: ['sushi'] },
+  { id: 'chef-panasia-1', name: 'Старший Паназия #1', role: 'chef', workshops: ['panasia'] },
+  { id: 'chef-panasia-2', name: 'Старший Паназия #2', role: 'chef', workshops: ['panasia'] },
+  { id: 'chef-pizza-1', name: 'Старший Пицца #1', role: 'chef', workshops: ['pizza'] },
+  { id: 'chef-pizza-2', name: 'Старший Пицца #2', role: 'chef', workshops: ['pizza'] },
+  { id: 'chef-pizza-3', name: 'Старший Пицца #3', role: 'chef', workshops: ['pizza'] },
+  { id: 'buyer-1', name: 'Закупщик #1', role: 'buyer', workshops: ['sushi', 'panasia', 'pizza'] },
+  { id: 'admin-me', name: 'Админ (я)', role: 'admin', workshops: ['sushi', 'panasia', 'pizza'] },
+  { id: 'owner', name: 'Владелец кафе', role: 'admin', workshops: ['sushi', 'panasia', 'pizza'] }
 ];
 
 const templates = {
@@ -35,7 +35,7 @@ const templates = {
 const workshopNames = { sushi: 'Суши', panasia: 'Паназия', pizza: 'Пицца' };
 
 let state = loadState();
-let selectedDate = today();
+let selectedDate = kzToday();
 let selectedWorkshop = 'sushi';
 let mode = 'plan';
 let selectedUserId = loadUser();
@@ -47,6 +47,7 @@ const transferBody = document.getElementById('transferBody');
 const categoryFilter = document.getElementById('categoryFilter');
 const itemSearch = document.getElementById('itemSearch');
 const addItemBtn = document.getElementById('addItemBtn');
+const startReconciliationBtn = document.getElementById('startReconciliationBtn');
 const dayRuleHint = document.getElementById('dayRuleHint');
 const userSelect = document.getElementById('userSelect');
 const accessHint = document.getElementById('accessHint');
@@ -57,6 +58,7 @@ function init() {
   dayPicker.value = selectedDate;
   ensureDay(selectedDate);
   migrateState();
+  applyAutoCloseByKZT();
   renderUserSelect();
   enforceWorkshopAccess();
   bindEvents();
@@ -67,6 +69,7 @@ function bindEvents() {
   dayPicker.addEventListener('change', () => {
     selectedDate = dayPicker.value;
     ensureDay(selectedDate);
+    applyAutoCloseByKZT();
     render();
   });
 
@@ -80,10 +83,7 @@ function bindEvents() {
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       const targetWorkshop = tab.dataset.workshop;
-      if (targetWorkshop !== 'history' && !canAccessWorkshop(targetWorkshop)) {
-        return;
-      }
-
+      if (targetWorkshop !== 'history' && !canAccessWorkshop(targetWorkshop)) return;
       selectedWorkshop = targetWorkshop;
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
@@ -101,9 +101,19 @@ function bindEvents() {
   });
 
   closeDayBtn.addEventListener('click', () => {
+    if (!canCloseDay()) return;
     state.days[selectedDate].closed = true;
     saveState();
     render();
+  });
+
+  startReconciliationBtn.addEventListener('click', () => {
+    if (!canStartReconciliation()) return;
+    state.days[selectedDate].reconciliation[selectedWorkshop] = true;
+    saveState();
+    mode = 'acceptance';
+    document.querySelectorAll('.mode').forEach((m) => m.classList.toggle('active', m.dataset.mode === mode));
+    renderWorkshop();
   });
 
   document.getElementById('historySearch').addEventListener('input', renderHistory);
@@ -119,18 +129,16 @@ function bindEvents() {
   itemSearch.addEventListener('input', renderWorkshop);
 
   addItemBtn.addEventListener('click', () => {
-    if (!canAccessWorkshop(selectedWorkshop)) return;
-
-    if (!canEditPlanList()) {
-      alert('Добавлять товары можно только в лист следующего дня (поставка на завтра) и если день не закрыт.');
+    if (!canAddItems()) {
+      alert('Добавлять товары могут только старшие повара своего цеха в лист следующего дня до 00:00 (KZ).');
       return;
     }
 
     const name = prompt('Название товара:');
     if (!name || !name.trim()) return;
 
-    const category = prompt('Категория товара (например: Соусы, Мясо, Овощи):', 'Прочее') || 'Прочее';
-    const unit = prompt('Единица измерения (кг, л, упак и т.д.):', 'шт') || 'шт';
+    const category = prompt('Категория товара:', 'Прочее') || 'Прочее';
+    const unit = prompt('Единица измерения:', 'шт') || 'шт';
     const from = prompt('Склад-отправитель:', 'Центральный') || 'Центральный';
     const to = prompt('Склад-получатель:', `${workshopNames[selectedWorkshop]}-цех`) || `${workshopNames[selectedWorkshop]}-цех`;
 
@@ -154,6 +162,7 @@ function ensureDay(date) {
   if (state.days[date]) return;
   state.days[date] = {
     closed: false,
+    reconciliation: { sushi: false, panasia: false, pizza: false },
     workshops: Object.fromEntries(
       Object.entries(templates).map(([key, items]) => [
         key,
@@ -166,6 +175,7 @@ function ensureDay(date) {
 
 function migrateState() {
   Object.values(state.days).forEach((day) => {
+    if (!day.reconciliation) day.reconciliation = { sushi: false, panasia: false, pizza: false };
     Object.values(day.workshops).forEach((rows) => {
       rows.forEach((row) => {
         if (!row.category) row.category = 'Без категории';
@@ -175,7 +185,16 @@ function migrateState() {
   saveState();
 }
 
+function applyAutoCloseByKZT() {
+  const nowDate = kzToday();
+  Object.entries(state.days).forEach(([date, day]) => {
+    if (!day.closed && date < nowDate) day.closed = true;
+  });
+  saveState();
+}
+
 function render() {
+  applyAutoCloseByKZT();
   renderTabsAccess();
   renderAccessHint();
   renderHistoryWorkshopFilter();
@@ -197,18 +216,14 @@ function renderWorkshop() {
   const day = state.days[selectedDate];
   const rows = day.workshops[selectedWorkshop] || [];
   const locked = day.closed;
-  const canEditList = canEditPlanList();
+  const canEditPlan = canEditPlanValues();
+  const reconciliationStarted = Boolean(day.reconciliation[selectedWorkshop]);
 
-  closeDayBtn.disabled = locked;
-  addItemBtn.disabled = !canEditList;
+  closeDayBtn.disabled = !canCloseDay();
+  addItemBtn.disabled = !canAddItems();
+  startReconciliationBtn.disabled = !canStartReconciliation() || reconciliationStarted;
 
-  dayRuleHint.textContent = canEditList
-    ? 'До 00:00 формируется закуп на завтра: старший шеф-повар добавляет товары в лист следующего дня.'
-    : 'Редактирование списка товаров закрыто: добавление доступно только в лист следующего дня (закуп на завтра).';
-
-  if (mode === 'acceptance' && selectedDate > today()) {
-    dayRuleHint.textContent = 'Приёмка заполняется в день фактической поставки. Для выбранной будущей даты приёмка пока недоступна.';
-  }
+  dayRuleHint.textContent = buildHintText({ locked, reconciliationStarted, canEditPlan });
 
   renderCategoryFilter(rows);
 
@@ -234,16 +249,32 @@ function renderWorkshop() {
     tr.innerHTML = `
       <td data-label="Товар">${row.name} <span class="small">(${row.unit})</span></td>
       <td data-label="Категория">${row.category}</td>
-      <td data-label="План">${numericInput(row.plan, locked || mode !== 'plan' || !canEditList, (v) => updateRow(index, 'plan', v))}</td>
-      <td data-label="Факт">${numericInput(row.fact, locked || mode !== 'acceptance' || selectedDate > today(), (v) => updateRow(index, 'fact', v))}</td>
+      <td data-label="План">${numericInput(row.plan, locked || mode !== 'plan' || !canEditPlan, (v) => updateRow(index, 'plan', v))}</td>
+      <td data-label="Факт">${numericInput(row.fact, locked || mode !== 'acceptance' || !canEditFactValues(), (v) => updateRow(index, 'fact', v))}</td>
       <td data-label="Разница" class="readonly">${(Number(row.fact) - Number(row.plan)).toFixed(2)}</td>
-      <td data-label="Комментарий">${textInput(row.comment, locked, (v) => updateRow(index, 'comment', v))}</td>
+      <td data-label="Комментарий">${textInput(row.comment, locked || !canAccessWorkshop(selectedWorkshop), (v) => updateRow(index, 'comment', v))}</td>
     `;
 
     itemsTableBody.appendChild(tr);
   });
 
   attachInputHandlers();
+}
+
+function buildHintText({ locked, reconciliationStarted, canEditPlan }) {
+  const user = getCurrentUser();
+  if (locked) return 'День закрыт: редактирование заблокировано.';
+  if (user.role === 'buyer') {
+    return reconciliationStarted
+      ? 'Сверка запущена. Вносите факт, чтобы не было недопоставки/перепоставки.'
+      : 'Закупщик видит все цеха, но не добавляет товары. Нажмите «Начать сверку» для приёмки.';
+  }
+  if (user.role === 'chef') {
+    return canEditPlan
+      ? 'До 00:00 (Казахстан) старший повар заполняет план на завтрашнюю поставку.'
+      : 'План редактируется только для завтрашней даты до 00:00 (Казахстан).';
+  }
+  return 'Режим администратора: просмотр всех цехов и истории.';
 }
 
 function renderCategoryFilter(rows) {
@@ -254,12 +285,7 @@ function renderCategoryFilter(rows) {
     '<option value="all">Все категории</option>',
     ...categories.map((cat) => `<option value="${cat}">${cat}</option>`)
   ].join('');
-
-  if (categories.includes(currentValue)) {
-    categoryFilter.value = currentValue;
-  } else {
-    categoryFilter.value = 'all';
-  }
+  categoryFilter.value = categories.includes(currentValue) ? currentValue : 'all';
 }
 
 function renderUserSelect() {
@@ -279,6 +305,49 @@ function canAccessWorkshop(workshop) {
   return getAllowedWorkshops().includes(workshop);
 }
 
+function canAddItems() {
+  const user = getCurrentUser();
+  if (user.role !== 'chef') return false;
+  if (!canAccessWorkshop(selectedWorkshop)) return false;
+  const day = state.days[selectedDate];
+  if (!day || day.closed) return false;
+  return selectedDate === kzTomorrow();
+}
+
+function canEditPlanValues() {
+  const user = getCurrentUser();
+  if (user.role !== 'chef') return false;
+  if (!canAccessWorkshop(selectedWorkshop)) return false;
+  const day = state.days[selectedDate];
+  if (!day || day.closed) return false;
+  return selectedDate === kzTomorrow();
+}
+
+function canStartReconciliation() {
+  const user = getCurrentUser();
+  if (!['buyer', 'admin'].includes(user.role)) return false;
+  if (!canAccessWorkshop(selectedWorkshop)) return false;
+  const day = state.days[selectedDate];
+  return Boolean(day && !day.closed);
+}
+
+function canEditFactValues() {
+  const user = getCurrentUser();
+  if (!['buyer', 'admin'].includes(user.role)) return false;
+  const day = state.days[selectedDate];
+  if (!day || day.closed) return false;
+  if (selectedDate > kzToday()) return false;
+  if (!day.reconciliation[selectedWorkshop]) return false;
+  return canAccessWorkshop(selectedWorkshop);
+}
+
+function canCloseDay() {
+  const user = getCurrentUser();
+  if (user.role !== 'buyer') return false;
+  const day = state.days[selectedDate];
+  return Boolean(day && !day.closed);
+}
+
 function enforceWorkshopAccess() {
   const allowed = getAllowedWorkshops();
   if (!allowed.includes(selectedWorkshop) && selectedWorkshop !== 'history') {
@@ -289,11 +358,7 @@ function enforceWorkshopAccess() {
 function renderTabsAccess() {
   document.querySelectorAll('.tab').forEach((tab) => {
     const ws = tab.dataset.workshop;
-    if (ws === 'history') {
-      tab.classList.remove('hidden');
-      return;
-    }
-
+    if (ws === 'history') return tab.classList.remove('hidden');
     tab.classList.toggle('hidden', !canAccessWorkshop(ws));
   });
 }
@@ -301,34 +366,19 @@ function renderTabsAccess() {
 function renderAccessHint() {
   const user = getCurrentUser();
   const labels = user.workshops.map((ws) => workshopNames[ws]).join(', ');
-  accessHint.textContent = `Доступ пользователя: ${user.name}. Разрешённые цеха: ${labels}.`;
+  const closeRule = user.role === 'buyer' ? 'Можно закрывать день вручную.' : 'Закрытие вручную недоступно.';
+  accessHint.textContent = `Пользователь: ${user.name}. Доступные цеха: ${labels}. ${closeRule}`;
 }
 
 function renderHistoryWorkshopFilter() {
   const select = document.getElementById('historyWorkshop');
   const allowed = getAllowedWorkshops();
-
   const options = allowed.map((ws) => `<option value="${ws}">${workshopNames[ws]}</option>`);
-  if (allowed.length > 1) {
-    options.unshift('<option value="all">Все доступные</option>');
-  }
+  if (allowed.length > 1) options.unshift('<option value="all">Все доступные</option>');
 
   const current = select.value;
   select.innerHTML = options.join('');
-
-  if ([...allowed, 'all'].includes(current)) {
-    select.value = current;
-  } else {
-    select.value = allowed.length > 1 ? 'all' : allowed[0];
-  }
-}
-
-function canEditPlanList() {
-  const day = state.days[selectedDate];
-  if (!day || day.closed) return false;
-  if (!canAccessWorkshop(selectedWorkshop)) return false;
-  if (selectedDate !== tomorrow()) return false;
-  return true;
+  select.value = [...allowed, 'all'].includes(current) ? current : (allowed.length > 1 ? 'all' : allowed[0]);
 }
 
 function numericInput(value, disabled, onChange) {
@@ -445,19 +495,26 @@ function saveUser(userId) {
   localStorage.setItem(USER_KEY, userId);
 }
 
-function formatDateLocal(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+function formatDateInTimeZone(date, timeZone = 'Asia/Almaty') {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+
+  const year = parts.find((p) => p.type === 'year').value;
+  const month = parts.find((p) => p.type === 'month').value;
+  const day = parts.find((p) => p.type === 'day').value;
   return `${year}-${month}-${day}`;
 }
 
-function today() {
-  return formatDateLocal(new Date());
+function kzToday() {
+  return formatDateInTimeZone(new Date(), 'Asia/Almaty');
 }
 
-function tomorrow() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return formatDateLocal(d);
+function kzTomorrow() {
+  const now = new Date();
+  now.setDate(now.getDate() + 1);
+  return formatDateInTimeZone(now, 'Asia/Almaty');
 }
