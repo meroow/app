@@ -8,7 +8,10 @@
   </head>
   <body>
     <header class="topbar">
-      <h1>Учёт закупа и приёмки по цехам</h1>
+      <div class="topbar-left">
+        <button id="menuToggleBtn" class="menu-toggle" aria-label="Открыть меню">☰</button>
+        <h1>Учёт закупа и приёмки по цехам</h1>
+      </div>
       <div class="controls">
         <label for="userSelect">Пользователь:</label>
         <select id="userSelect"></select>
@@ -17,6 +20,16 @@
         <button id="closeDayBtn" class="danger">Закрыть день</button>
       </div>
     </header>
+
+    <aside id="appMenu" class="app-menu hidden">
+      <nav class="menu-nav">
+        <button class="menu-item active" data-section="planning">Запланировать закуп</button>
+        <button class="menu-item" data-section="reconciliation">Проверка закупа</button>
+        <button class="menu-item" data-section="history">История</button>
+        <button class="menu-item" data-section="account">Аккаунт</button>
+      </nav>
+      <button id="logoutBtn" class="danger logout-btn">Выход</button>
+    </aside>
 
     <main>
       <section class="tabs" aria-label="Цеха">
@@ -52,7 +65,9 @@
 
         <p id="dayRuleHint" class="small notice"></p>
 
-        <div class="table-wrap">
+        <ul id="reconciliationList" class="reconciliation-list hidden"></ul>
+
+        <div id="tableWrap" class="table-wrap">
           <table>
             <thead>
               <tr>
@@ -78,6 +93,11 @@
           <input id="historySearch" type="search" placeholder="Введите товар" />
         </div>
         <div id="historyList"></div>
+      </section>
+
+      <section id="accountView" class="panel hidden">
+        <h2>Аккаунт</h2>
+        <p id="accountInfo"></p>
       </section>
 
       <section id="transferView" class="panel hidden">

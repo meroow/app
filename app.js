@@ -39,6 +39,7 @@ let selectedDate = kzToday();
 let selectedWorkshop = 'sushi';
 let mode = 'plan';
 let selectedUserId = loadUser();
+let currentSection = 'planning';
 
 const dayPicker = document.getElementById('dayPicker');
 const itemsTableBody = document.getElementById('itemsTableBody');
@@ -51,6 +52,10 @@ const startReconciliationBtn = document.getElementById('startReconciliationBtn')
 const dayRuleHint = document.getElementById('dayRuleHint');
 const userSelect = document.getElementById('userSelect');
 const accessHint = document.getElementById('accessHint');
+const reconciliationList = document.getElementById('reconciliationList');
+const tableWrap = document.getElementById('tableWrap');
+const accountInfo = document.getElementById('accountInfo');
+const appMenu = document.getElementById('appMenu');
 
 init();
 
@@ -80,6 +85,32 @@ function bindEvents() {
     render();
   });
 
+  document.getElementById('menuToggleBtn').addEventListener('click', () => {
+    appMenu.classList.toggle('hidden');
+  });
+
+  document.querySelectorAll('.menu-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      currentSection = btn.dataset.section;
+      document.querySelectorAll('.menu-item').forEach((x) => x.classList.remove('active'));
+      btn.classList.add('active');
+      if (currentSection === 'reconciliation') mode = 'acceptance';
+      if (currentSection === 'planning') mode = 'plan';
+      appMenu.classList.add('hidden');
+      render();
+    });
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem(USER_KEY);
+    selectedUserId = users[0].id;
+    saveUser(selectedUserId);
+    renderUserSelect();
+    enforceWorkshopAccess();
+    appMenu.classList.add('hidden');
+    render();
+  });
+
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       const targetWorkshop = tab.dataset.workshop;
@@ -87,6 +118,7 @@ function bindEvents() {
       selectedWorkshop = targetWorkshop;
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
+      if (targetWorkshop === 'history') currentSection = 'history';
       render();
     });
   });
@@ -133,7 +165,6 @@ function bindEvents() {
       alert('Добавлять товары могут только старшие повара своего цеха в лист следующего дня до 00:00 (KZ).');
       return;
     }
-
     const name = prompt('Название товара:');
     if (!name || !name.trim()) return;
 
@@ -142,17 +173,7 @@ function bindEvents() {
     const from = prompt('Склад-отправитель:', 'Центральный') || 'Центральный';
     const to = prompt('Склад-получатель:', `${workshopNames[selectedWorkshop]}-цех`) || `${workshopNames[selectedWorkshop]}-цех`;
 
-    state.days[selectedDate].workshops[selectedWorkshop].push({
-      name: name.trim(),
-      category: category.trim(),
-      unit: unit.trim(),
-      from: from.trim(),
-      to: to.trim(),
-      plan: 0,
-      fact: 0,
-      comment: ''
-    });
-
+    state.days[selectedDate].workshops[selectedWorkshop].push({ name: name.trim(), category: category.trim(), unit: unit.trim(), from: from.trim(), to: to.trim(), plan: 0, fact: 0, comment: '' });
     saveState();
     renderWorkshop();
   });
@@ -198,17 +219,16 @@ function render() {
   renderTabsAccess();
   renderAccessHint();
   renderHistoryWorkshopFilter();
+  renderAccount();
 
-  const historyMode = selectedWorkshop === 'history';
-  document.getElementById('workshopView').classList.toggle('hidden', historyMode);
-  document.getElementById('historyView').classList.toggle('hidden', !historyMode);
+  const showWorkshop = ['planning', 'reconciliation'].includes(currentSection);
+  document.getElementById('workshopView').classList.toggle('hidden', !showWorkshop);
+  document.getElementById('historyView').classList.toggle('hidden', currentSection !== 'history');
+  document.getElementById('accountView').classList.toggle('hidden', currentSection !== 'account');
   document.getElementById('transferView').classList.add('hidden');
 
-  if (historyMode) {
-    renderHistory();
-    return;
-  }
-
+  if (currentSection === 'history') return renderHistory();
+  if (currentSection === 'account') return;
   renderWorkshop();
 }
 
@@ -224,17 +244,23 @@ function renderWorkshop() {
   startReconciliationBtn.disabled = !canStartReconciliation() || reconciliationStarted;
 
   dayRuleHint.textContent = buildHintText({ locked, reconciliationStarted, canEditPlan });
-
   renderCategoryFilter(rows);
 
   const currentCategory = categoryFilter.value || 'all';
   const searchText = itemSearch.value.trim().toLowerCase();
-
   const filteredRows = rows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => currentCategory === 'all' || row.category === currentCategory)
     .filter(({ row }) => !searchText || row.name.toLowerCase().includes(searchText));
 
+  if (mode === 'acceptance') {
+    tableWrap.classList.add('hidden');
+    renderReconciliationList(filteredRows, locked);
+    return;
+  }
+
+  reconciliationList.classList.add('hidden');
+  tableWrap.classList.remove('hidden');
   itemsTableBody.innerHTML = '';
 
   if (!filteredRows.length) {
@@ -245,17 +271,47 @@ function renderWorkshop() {
   filteredRows.forEach(({ row, index }) => {
     const tr = document.createElement('tr');
     if (locked) tr.classList.add('closed');
-
     tr.innerHTML = `
       <td data-label="Товар">${row.name} <span class="small">(${row.unit})</span></td>
       <td data-label="Категория">${row.category}</td>
       <td data-label="План">${numericInput(row.plan, locked || mode !== 'plan' || !canEditPlan, (v) => updateRow(index, 'plan', v))}</td>
-      <td data-label="Факт">${numericInput(row.fact, locked || mode !== 'acceptance' || !canEditFactValues(), (v) => updateRow(index, 'fact', v))}</td>
+      <td data-label="Факт">${numericInput(row.fact, true, (v) => updateRow(index, 'fact', v))}</td>
       <td data-label="Разница" class="readonly">${(Number(row.fact) - Number(row.plan)).toFixed(2)}</td>
       <td data-label="Комментарий">${textInput(row.comment, locked || !canAccessWorkshop(selectedWorkshop), (v) => updateRow(index, 'comment', v))}</td>
     `;
-
     itemsTableBody.appendChild(tr);
+  });
+  attachInputHandlers();
+}
+
+function renderReconciliationList(filteredRows, locked) {
+  reconciliationList.innerHTML = '';
+  reconciliationList.classList.remove('hidden');
+
+  if (!filteredRows.length) {
+    reconciliationList.innerHTML = '<li class="reconciliation-card">Нет товаров по выбранным фильтрам.</li>';
+    return;
+  }
+
+  filteredRows.forEach(({ row, index }) => {
+    const li = document.createElement('li');
+    li.className = 'reconciliation-card';
+    const diff = (Number(row.fact) - Number(row.plan)).toFixed(2);
+
+    li.innerHTML = `
+      <div class="recon-title">${row.name} <span class="small">(${row.unit})</span></div>
+      <div class="small">Категория: ${row.category}</div>
+      <div>План: <b>${Number(row.plan).toFixed(2)}</b></div>
+      <label>Факт:
+        ${numericInput(row.fact, locked || !canEditFactValues(), (v) => updateRow(index, 'fact', v))}
+      </label>
+      <div>Разница: <b>${diff}</b></div>
+      <label>Комментарий:
+        ${textInput(row.comment, locked || !canEditFactValues(), (v) => updateRow(index, 'comment', v))}
+      </label>
+    `;
+
+    reconciliationList.appendChild(li);
   });
 
   attachInputHandlers();
@@ -264,33 +320,27 @@ function renderWorkshop() {
 function buildHintText({ locked, reconciliationStarted, canEditPlan }) {
   const user = getCurrentUser();
   if (locked) return 'День закрыт: редактирование заблокировано.';
-  if (user.role === 'buyer') {
-    return reconciliationStarted
-      ? 'Сверка запущена. Вносите факт, чтобы не было недопоставки/перепоставки.'
-      : 'Закупщик видит все цеха, но не добавляет товары. Нажмите «Начать сверку» для приёмки.';
-  }
-  if (user.role === 'chef') {
-    return canEditPlan
-      ? 'До 00:00 (Казахстан) старший повар заполняет план на завтрашнюю поставку.'
-      : 'План редактируется только для завтрашней даты до 00:00 (Казахстан).';
-  }
+  if (user.role === 'buyer') return reconciliationStarted ? 'Сверка запущена. Товары ниже показываются списком для приёмки.' : 'Закупщик видит все цеха, но не добавляет товары. Нажмите «Начать сверку». ';
+  if (user.role === 'chef') return canEditPlan ? 'До 00:00 (Казахстан) старший повар заполняет план на завтрашнюю поставку.' : 'План редактируется только для завтрашней даты до 00:00 (Казахстан).';
   return 'Режим администратора: просмотр всех цехов и истории.';
 }
 
 function renderCategoryFilter(rows) {
   const categories = [...new Set(rows.map((r) => r.category || 'Без категории'))].sort((a, b) => a.localeCompare(b));
   const currentValue = categoryFilter.value || 'all';
-
-  categoryFilter.innerHTML = [
-    '<option value="all">Все категории</option>',
-    ...categories.map((cat) => `<option value="${cat}">${cat}</option>`)
-  ].join('');
+  categoryFilter.innerHTML = ['<option value="all">Все категории</option>', ...categories.map((cat) => `<option value="${cat}">${cat}</option>`)].join('');
   categoryFilter.value = categories.includes(currentValue) ? currentValue : 'all';
 }
 
 function renderUserSelect() {
   userSelect.innerHTML = users.map((user) => `<option value="${user.id}">${user.name}</option>`).join('');
   userSelect.value = selectedUserId;
+}
+
+function renderAccount() {
+  const user = getCurrentUser();
+  const workshops = user.workshops.map((ws) => workshopNames[ws]).join(', ');
+  accountInfo.textContent = `Роль: ${user.role}. Доступ: ${workshops}.`;
 }
 
 function getCurrentUser() {
@@ -350,9 +400,7 @@ function canCloseDay() {
 
 function enforceWorkshopAccess() {
   const allowed = getAllowedWorkshops();
-  if (!allowed.includes(selectedWorkshop) && selectedWorkshop !== 'history') {
-    selectedWorkshop = allowed[0] || 'sushi';
-  }
+  if (!allowed.includes(selectedWorkshop) && selectedWorkshop !== 'history') selectedWorkshop = allowed[0] || 'sushi';
 }
 
 function renderTabsAccess() {
@@ -437,40 +485,30 @@ function renderHistory() {
     return;
   }
 
-  container.innerHTML = entries
-    .map(
-      (e) => `<article class="history-card">
-        <h3>${e.date} — ${workshopNames[e.workshop]}</h3>
-        <div>Товар: <b>${e.name}</b> (${e.unit})</div>
-        <div>Категория: ${e.category || 'Без категории'}</div>
-        <div>План: ${e.plan} | Факт: ${e.fact} | Разница: ${e.diff.toFixed(2)}</div>
-        <div>Комментарий: ${e.comment || '—'}</div>
-        <div class="small">Статус дня: ${e.closed ? 'закрыт' : 'открыт'}</div>
-      </article>`
-    )
-    .join('');
+  container.innerHTML = entries.map((e) => `<article class="history-card">
+    <h3>${e.date} — ${workshopNames[e.workshop]}</h3>
+    <div>Товар: <b>${e.name}</b> (${e.unit})</div>
+    <div>Категория: ${e.category || 'Без категории'}</div>
+    <div>План: ${e.plan} | Факт: ${e.fact} | Разница: ${e.diff.toFixed(2)}</div>
+    <div>Комментарий: ${e.comment || '—'}</div>
+    <div class="small">Статус дня: ${e.closed ? 'закрыт' : 'открыт'}</div>
+  </article>`).join('');
 }
 
 function buildTransfer() {
   const day = state.days[selectedDate];
   const rows = day.workshops[selectedWorkshop].filter((r) => Number(r.fact) > 0);
-
   if (!rows.length) {
     transferBody.innerHTML = '<tr><td colspan="5">Нет данных по факту для перемещения.</td></tr>';
     return;
   }
-
-  transferBody.innerHTML = rows
-    .map(
-      (r) => `<tr>
-      <td data-label="Товар">${r.name}</td>
-      <td data-label="Количество">${Number(r.fact).toFixed(2)}</td>
-      <td data-label="Ед.">${r.unit}</td>
-      <td data-label="Склад-отправитель">${r.from}</td>
-      <td data-label="Склад-получатель">${r.to}</td>
-    </tr>`
-    )
-    .join('');
+  transferBody.innerHTML = rows.map((r) => `<tr>
+    <td data-label="Товар">${r.name}</td>
+    <td data-label="Количество">${Number(r.fact).toFixed(2)}</td>
+    <td data-label="Ед.">${r.unit}</td>
+    <td data-label="Склад-отправитель">${r.from}</td>
+    <td data-label="Склад-получатель">${r.to}</td>
+  </tr>`).join('');
 }
 
 function loadState() {
@@ -496,13 +534,7 @@ function saveUser(userId) {
 }
 
 function formatDateInTimeZone(date, timeZone = 'Asia/Almaty') {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
-
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
   const year = parts.find((p) => p.type === 'year').value;
   const month = parts.find((p) => p.type === 'month').value;
   const day = parts.find((p) => p.type === 'day').value;
