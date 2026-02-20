@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Учёт закупа и приёмки</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Учёт закупа и приёмки по цехам</h1>
+      <div class="controls">
+        <label for="dayPicker">Дата:</label>
+        <input id="dayPicker" type="date" />
+        <button id="closeDayBtn" class="danger">Закрыть день</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="tabs" aria-label="Цеха">
+        <button class="tab active" data-workshop="sushi">Суши</button>
+        <button class="tab" data-workshop="panasia">Паназия</button>
+        <button class="tab" data-workshop="pizza">Пицца</button>
+        <button class="tab history" data-workshop="history">История</button>
+      </section>
+
+      <section id="workshopView" class="panel">
+        <div class="panel-head">
+          <div class="mode-switch">
+            <span>Режим:</span>
+            <button class="mode active" data-mode="plan">План</button>
+            <button class="mode" data-mode="acceptance">Приёмка</button>
+          </div>
+          <div class="panel-actions">
+            <button id="addItemBtn">Добавить товар</button>
+            <button id="generateTransferBtn" class="secondary">Сформировать перемещение</button>
+          </div>
+        </div>
+
+        <div class="catalog-filters">
+          <label for="categoryFilter">Категория:</label>
+          <select id="categoryFilter"></select>
+
+          <label for="itemSearch">Поиск:</label>
+          <input id="itemSearch" type="search" placeholder="Найти товар" />
+        </div>
+
+        <p id="dayRuleHint" class="small notice"></p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Товар</th>
+                <th>Категория</th>
+                <th>План</th>
+                <th>Факт</th>
+                <th>Разница</th>
+                <th>Комментарий</th>
+              </tr>
+            </thead>
+            <tbody id="itemsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="historyView" class="panel hidden">
+        <div class="history-filters">
+          <label for="historyWorkshop">Цех:</label>
+          <select id="historyWorkshop">
+            <option value="all">Все</option>
+            <option value="sushi">Суши</option>
+            <option value="panasia">Паназия</option>
+            <option value="pizza">Пицца</option>
+          </select>
+
+          <label for="historySearch">Поиск:</label>
+          <input id="historySearch" type="search" placeholder="Введите товар" />
+        </div>
+        <div id="historyList"></div>
+      </section>
+
+      <section id="transferView" class="panel hidden">
+        <h2>Перемещение для iiko (по факту)</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Товар</th>
+                <th>Количество</th>
+                <th>Ед.</th>
+                <th>Склад-отправитель</th>
+                <th>Склад-получатель</th>
+              </tr>
+            </thead>
+            <tbody id="transferBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
