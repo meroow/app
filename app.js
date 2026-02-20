@@ -1,4 +1,18 @@
 const STORAGE_KEY = 'workshop-procurement-v1';
+const USER_KEY = 'workshop-procurement-user';
+
+const users = [
+  { id: 'chef-sushi-1', name: 'Старший Суши #1', workshops: ['sushi'] },
+  { id: 'chef-sushi-2', name: 'Старший Суши #2', workshops: ['sushi'] },
+  { id: 'chef-panasia-1', name: 'Старший Паназия #1', workshops: ['panasia'] },
+  { id: 'chef-panasia-2', name: 'Старший Паназия #2', workshops: ['panasia'] },
+  { id: 'chef-pizza-1', name: 'Старший Пицца #1', workshops: ['pizza'] },
+  { id: 'chef-pizza-2', name: 'Старший Пицца #2', workshops: ['pizza'] },
+  { id: 'chef-pizza-3', name: 'Старший Пицца #3', workshops: ['pizza'] },
+  { id: 'storekeeper-1', name: 'Кладовщик #1', workshops: ['sushi', 'panasia', 'pizza'] },
+  { id: 'storekeeper-2', name: 'Кладовщик #2', workshops: ['sushi', 'panasia', 'pizza'] },
+  { id: 'admin', name: 'Администратор', workshops: ['sushi', 'panasia', 'pizza'] }
+];
 
 const templates = {
   sushi: [
@@ -24,6 +38,7 @@ let state = loadState();
 let selectedDate = today();
 let selectedWorkshop = 'sushi';
 let mode = 'plan';
+let selectedUserId = loadUser();
 
 const dayPicker = document.getElementById('dayPicker');
 const itemsTableBody = document.getElementById('itemsTableBody');
@@ -33,6 +48,8 @@ const categoryFilter = document.getElementById('categoryFilter');
 const itemSearch = document.getElementById('itemSearch');
 const addItemBtn = document.getElementById('addItemBtn');
 const dayRuleHint = document.getElementById('dayRuleHint');
+const userSelect = document.getElementById('userSelect');
+const accessHint = document.getElementById('accessHint');
 
 init();
 
@@ -40,6 +57,8 @@ function init() {
   dayPicker.value = selectedDate;
   ensureDay(selectedDate);
   migrateState();
+  renderUserSelect();
+  enforceWorkshopAccess();
   bindEvents();
   render();
 }
@@ -51,9 +70,21 @@ function bindEvents() {
     render();
   });
 
+  userSelect.addEventListener('change', () => {
+    selectedUserId = userSelect.value;
+    saveUser(selectedUserId);
+    enforceWorkshopAccess();
+    render();
+  });
+
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      selectedWorkshop = tab.dataset.workshop;
+      const targetWorkshop = tab.dataset.workshop;
+      if (targetWorkshop !== 'history' && !canAccessWorkshop(targetWorkshop)) {
+        return;
+      }
+
+      selectedWorkshop = targetWorkshop;
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
       render();
@@ -79,6 +110,7 @@ function bindEvents() {
   document.getElementById('historyWorkshop').addEventListener('change', renderHistory);
 
   document.getElementById('generateTransferBtn').addEventListener('click', () => {
+    if (!canAccessWorkshop(selectedWorkshop)) return;
     buildTransfer();
     document.getElementById('transferView').classList.remove('hidden');
   });
@@ -87,6 +119,8 @@ function bindEvents() {
   itemSearch.addEventListener('input', renderWorkshop);
 
   addItemBtn.addEventListener('click', () => {
+    if (!canAccessWorkshop(selectedWorkshop)) return;
+
     if (!canEditPlanList()) {
       alert('Добавлять товары можно только в лист следующего дня (поставка на завтра) и если день не закрыт.');
       return;
@@ -142,6 +176,10 @@ function migrateState() {
 }
 
 function render() {
+  renderTabsAccess();
+  renderAccessHint();
+  renderHistoryWorkshopFilter();
+
   const historyMode = selectedWorkshop === 'history';
   document.getElementById('workshopView').classList.toggle('hidden', historyMode);
   document.getElementById('historyView').classList.toggle('hidden', !historyMode);
@@ -157,7 +195,7 @@ function render() {
 
 function renderWorkshop() {
   const day = state.days[selectedDate];
-  const rows = day.workshops[selectedWorkshop];
+  const rows = day.workshops[selectedWorkshop] || [];
   const locked = day.closed;
   const canEditList = canEditPlanList();
 
@@ -224,9 +262,71 @@ function renderCategoryFilter(rows) {
   }
 }
 
+function renderUserSelect() {
+  userSelect.innerHTML = users.map((user) => `<option value="${user.id}">${user.name}</option>`).join('');
+  userSelect.value = selectedUserId;
+}
+
+function getCurrentUser() {
+  return users.find((user) => user.id === selectedUserId) || users[0];
+}
+
+function getAllowedWorkshops() {
+  return getCurrentUser().workshops;
+}
+
+function canAccessWorkshop(workshop) {
+  return getAllowedWorkshops().includes(workshop);
+}
+
+function enforceWorkshopAccess() {
+  const allowed = getAllowedWorkshops();
+  if (!allowed.includes(selectedWorkshop) && selectedWorkshop !== 'history') {
+    selectedWorkshop = allowed[0] || 'sushi';
+  }
+}
+
+function renderTabsAccess() {
+  document.querySelectorAll('.tab').forEach((tab) => {
+    const ws = tab.dataset.workshop;
+    if (ws === 'history') {
+      tab.classList.remove('hidden');
+      return;
+    }
+
+    tab.classList.toggle('hidden', !canAccessWorkshop(ws));
+  });
+}
+
+function renderAccessHint() {
+  const user = getCurrentUser();
+  const labels = user.workshops.map((ws) => workshopNames[ws]).join(', ');
+  accessHint.textContent = `Доступ пользователя: ${user.name}. Разрешённые цеха: ${labels}.`;
+}
+
+function renderHistoryWorkshopFilter() {
+  const select = document.getElementById('historyWorkshop');
+  const allowed = getAllowedWorkshops();
+
+  const options = allowed.map((ws) => `<option value="${ws}">${workshopNames[ws]}</option>`);
+  if (allowed.length > 1) {
+    options.unshift('<option value="all">Все доступные</option>');
+  }
+
+  const current = select.value;
+  select.innerHTML = options.join('');
+
+  if ([...allowed, 'all'].includes(current)) {
+    select.value = current;
+  } else {
+    select.value = allowed.length > 1 ? 'all' : allowed[0];
+  }
+}
+
 function canEditPlanList() {
   const day = state.days[selectedDate];
   if (!day || day.closed) return false;
+  if (!canAccessWorkshop(selectedWorkshop)) return false;
   if (selectedDate !== tomorrow()) return false;
   return true;
 }
@@ -255,6 +355,7 @@ function attachInputHandlers() {
 }
 
 function updateRow(index, key, value) {
+  if (!canAccessWorkshop(selectedWorkshop)) return;
   const row = state.days[selectedDate].workshops[selectedWorkshop][index];
   row[key] = key === 'comment' ? value : Number(value || 0);
   saveState();
@@ -266,11 +367,13 @@ function renderHistory() {
   const filterWorkshop = document.getElementById('historyWorkshop').value;
   const searchText = document.getElementById('historySearch').value.trim().toLowerCase();
 
+  const allowedSet = new Set(getAllowedWorkshops());
   const entries = [];
   Object.entries(state.days)
     .sort((a, b) => b[0].localeCompare(a[0]))
     .forEach(([date, day]) => {
       Object.entries(day.workshops).forEach(([workshop, rows]) => {
+        if (!allowedSet.has(workshop)) return;
         if (filterWorkshop !== 'all' && workshop !== filterWorkshop) return;
         rows.forEach((row) => {
           if (searchText && !row.name.toLowerCase().includes(searchText)) return;
@@ -330,6 +433,16 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadUser() {
+  const stored = localStorage.getItem(USER_KEY);
+  if (users.some((user) => user.id === stored)) return stored;
+  return users[0].id;
+}
+
+function saveUser(userId) {
+  localStorage.setItem(USER_KEY, userId);
 }
 
 function formatDateLocal(date) {

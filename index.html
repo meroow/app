@@ -10,6 +10,8 @@
     <header class="topbar">
       <h1>Учёт закупа и приёмки по цехам</h1>
       <div class="controls">
+        <label for="userSelect">Пользователь:</label>
+        <select id="userSelect"></select>
         <label for="dayPicker">Дата:</label>
         <input id="dayPicker" type="date" />
         <button id="closeDayBtn" class="danger">Закрыть день</button>
@@ -23,6 +25,8 @@
         <button class="tab" data-workshop="pizza">Пицца</button>
         <button class="tab history" data-workshop="history">История</button>
       </section>
+
+      <p id="accessHint" class="small notice"></p>
 
       <section id="workshopView" class="panel">
         <div class="panel-head">

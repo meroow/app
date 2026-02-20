@@ -37,6 +37,7 @@ button {
   min-height: 40px;
 }
 button.active { background: #111827; color: white; }
+.tab.hidden { display: none; }
 button.secondary { background: #ecfeff; border-color: #06b6d4; }
 button.danger { background: #fef2f2; border-color: #ef4444; color: #991b1b; }
 
