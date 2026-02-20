@@ -88,7 +88,7 @@ function bindEvents() {
 
   addItemBtn.addEventListener('click', () => {
     if (!canEditPlanList()) {
-      alert('Добавлять товары можно только для текущего дня до 00:00 и если день не закрыт.');
+      alert('Добавлять товары можно только в лист следующего дня (поставка на завтра) и если день не закрыт.');
       return;
     }
 
@@ -165,8 +165,12 @@ function renderWorkshop() {
   addItemBtn.disabled = !canEditList;
 
   dayRuleHint.textContent = canEditList
-    ? 'До 00:00 старший шеф-повар может добавлять новые товары в список текущего дня.'
-    : 'Редактирование списка товаров закрыто: добавление доступно только для текущего дня до 00:00.';
+    ? 'До 00:00 формируется закуп на завтра: старший шеф-повар добавляет товары в лист следующего дня.'
+    : 'Редактирование списка товаров закрыто: добавление доступно только в лист следующего дня (закуп на завтра).';
+
+  if (mode === 'acceptance' && selectedDate > today()) {
+    dayRuleHint.textContent = 'Приёмка заполняется в день фактической поставки. Для выбранной будущей даты приёмка пока недоступна.';
+  }
 
   renderCategoryFilter(rows);
 
@@ -192,8 +196,8 @@ function renderWorkshop() {
     tr.innerHTML = `
       <td data-label="Товар">${row.name} <span class="small">(${row.unit})</span></td>
       <td data-label="Категория">${row.category}</td>
-      <td data-label="План">${numericInput(row.plan, locked || mode !== 'plan', (v) => updateRow(index, 'plan', v))}</td>
-      <td data-label="Факт">${numericInput(row.fact, locked || mode !== 'acceptance', (v) => updateRow(index, 'fact', v))}</td>
+      <td data-label="План">${numericInput(row.plan, locked || mode !== 'plan' || !canEditList, (v) => updateRow(index, 'plan', v))}</td>
+      <td data-label="Факт">${numericInput(row.fact, locked || mode !== 'acceptance' || selectedDate > today(), (v) => updateRow(index, 'fact', v))}</td>
       <td data-label="Разница" class="readonly">${(Number(row.fact) - Number(row.plan)).toFixed(2)}</td>
       <td data-label="Комментарий">${textInput(row.comment, locked, (v) => updateRow(index, 'comment', v))}</td>
     `;
@@ -223,7 +227,7 @@ function renderCategoryFilter(rows) {
 function canEditPlanList() {
   const day = state.days[selectedDate];
   if (!day || day.closed) return false;
-  if (selectedDate !== today()) return false;
+  if (selectedDate !== tomorrow()) return false;
   return true;
 }
 
@@ -328,6 +332,19 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function formatDateLocal(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  return formatDateLocal(new Date());
+}
+
+function tomorrow() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return formatDateLocal(d);
 }
