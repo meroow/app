@@ -40,6 +40,7 @@ h1 { margin: 0; font-size: 1.1rem; }
 .logout-btn { margin-top: auto; }
 
 main { padding: 16px; }
+.section-title { margin: 0 0 10px; font-size: 1.05rem; }
 .tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 button {
   border: 1px solid #d1d5db;

@@ -56,6 +56,11 @@ const reconciliationList = document.getElementById('reconciliationList');
 const tableWrap = document.getElementById('tableWrap');
 const accountInfo = document.getElementById('accountInfo');
 const appMenu = document.getElementById('appMenu');
+const sectionTitle = document.getElementById('sectionTitle');
+const workshopTabs = document.getElementById('workshopTabs');
+const modeSwitch = document.getElementById('modeSwitch');
+const catalogFilters = document.getElementById('catalogFilters');
+const globalControls = document.getElementById('globalControls');
 
 init();
 
@@ -114,11 +119,10 @@ function bindEvents() {
   document.querySelectorAll('.tab').forEach((tab) => {
     tab.addEventListener('click', () => {
       const targetWorkshop = tab.dataset.workshop;
-      if (targetWorkshop !== 'history' && !canAccessWorkshop(targetWorkshop)) return;
+      if (!canAccessWorkshop(targetWorkshop)) return;
       selectedWorkshop = targetWorkshop;
       document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
-      if (targetWorkshop === 'history') currentSection = 'history';
       render();
     });
   });
@@ -220,6 +224,7 @@ function render() {
   renderAccessHint();
   renderHistoryWorkshopFilter();
   renderAccount();
+  syncSectionLayout();
 
   const showWorkshop = ['planning', 'reconciliation'].includes(currentSection);
   document.getElementById('workshopView').classList.toggle('hidden', !showWorkshop);
@@ -230,6 +235,29 @@ function render() {
   if (currentSection === 'history') return renderHistory();
   if (currentSection === 'account') return;
   renderWorkshop();
+}
+
+function syncSectionLayout() {
+  const titles = {
+    planning: 'Запланировать закуп',
+    reconciliation: 'Проверка закупа',
+    history: 'История',
+    account: 'Аккаунт'
+  };
+  sectionTitle.textContent = titles[currentSection] || 'Учёт закупа';
+
+  const isWorkSection = ['planning', 'reconciliation'].includes(currentSection);
+  workshopTabs.classList.toggle('hidden', !isWorkSection);
+  modeSwitch.classList.toggle('hidden', !isWorkSection);
+  catalogFilters.classList.toggle('hidden', !isWorkSection);
+
+  globalControls.classList.toggle('hidden', currentSection === 'account');
+  closeDayBtn.classList.toggle('hidden', currentSection !== 'reconciliation');
+
+  if (currentSection === 'planning') mode = 'plan';
+  if (currentSection === 'reconciliation') mode = 'acceptance';
+
+  document.querySelectorAll('.mode').forEach((m) => m.classList.toggle('active', m.dataset.mode === mode));
 }
 
 function renderWorkshop() {
@@ -406,7 +434,6 @@ function enforceWorkshopAccess() {
 function renderTabsAccess() {
   document.querySelectorAll('.tab').forEach((tab) => {
     const ws = tab.dataset.workshop;
-    if (ws === 'history') return tab.classList.remove('hidden');
     tab.classList.toggle('hidden', !canAccessWorkshop(ws));
   });
 }

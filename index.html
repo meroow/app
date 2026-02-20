@@ -10,9 +10,9 @@
     <header class="topbar">
       <div class="topbar-left">
         <button id="menuToggleBtn" class="menu-toggle" aria-label="Открыть меню">☰</button>
-        <h1>Учёт закупа и приёмки по цехам</h1>
+        <h1>Учёт закупа и приёмки</h1>
       </div>
-      <div class="controls">
+      <div id="globalControls" class="controls">
         <label for="userSelect">Пользователь:</label>
         <select id="userSelect"></select>
         <label for="dayPicker">Дата:</label>
@@ -32,18 +32,18 @@
     </aside>
 
     <main>
-      <section class="tabs" aria-label="Цеха">
+      <h2 id="sectionTitle" class="section-title"></h2>
+      <section id="workshopTabs" class="tabs" aria-label="Цеха">
         <button class="tab active" data-workshop="sushi">Суши</button>
         <button class="tab" data-workshop="panasia">Паназия</button>
         <button class="tab" data-workshop="pizza">Пицца</button>
-        <button class="tab history" data-workshop="history">История</button>
       </section>
 
       <p id="accessHint" class="small notice"></p>
 
       <section id="workshopView" class="panel">
         <div class="panel-head">
-          <div class="mode-switch">
+          <div id="modeSwitch" class="mode-switch">
             <span>Режим:</span>
             <button class="mode active" data-mode="plan">План</button>
             <button class="mode" data-mode="acceptance">Приёмка</button>
@@ -55,7 +55,7 @@
           </div>
         </div>
 
-        <div class="catalog-filters">
+        <div id="catalogFilters" class="catalog-filters">
           <label for="categoryFilter">Категория:</label>
           <select id="categoryFilter"></select>
 
