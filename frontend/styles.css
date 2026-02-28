@@ -1,0 +1,97 @@
+:root {
+  --bg: #ffffff;
+  --surface: #f3f4f6;
+  --text: #111111;
+  --muted: #6b7280;
+  --accent: #cc1f1f;
+  --border: #d1d5db;
+}
+
+html[data-theme='dark'] {
+  --bg: #111111;
+  --surface: #1f1f1f;
+  --text: #ffffff;
+  --muted: #9ca3af;
+  --accent: #ef4444;
+  --border: #374151;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+input, button, select, textarea {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+button { cursor: pointer; }
+.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.segmented { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.segmented-btn { margin: 0; border: none; border-right: 1px solid var(--border); width: auto; min-width: 88px; }
+.segmented-btn:last-child { border-right: none; }
+.segmented-btn.active { background: var(--accent); color: #fff; }
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  margin-left: 8px;
+  border: 1px solid var(--border);
+}
+.badge.draft { background: #fff7ed; color: #9a3412; }
+.badge.submitted { background: #eff6ff; color: #1d4ed8; }
+.badge.checked { background: #f0fdf4; color: #166534; }
+.badge.finalized { background: #f3f4f6; color: #111827; }
+
+.row-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.muted { color: var(--muted); }
+.hidden { display: none; }
+
+@media (min-width: 768px) {
+  .tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
