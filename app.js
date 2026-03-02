@@ -10,22 +10,40 @@ const state = {
   plan: null,
   items: [],
   menuMode: null,
-  categories: {
-    Мясо: ['Курица', 'Говядина', 'Индейка'],
-    Овощи: ['Картофель', 'Морковь', 'Лук'],
-    Бакалея: ['Рис', 'Мука', 'Гречка']
-  },
-  popular: ['Курица', 'Рис', 'Картофель', 'Лук', 'Мука', 'Масло']
+  categories: {},
+  popular: []
 };
 
 const themeButtons = [...document.querySelectorAll('.segmented-btn')];
 const authCard = document.getElementById('auth-card');
 const app = document.getElementById('app');
 const authMsg = document.getElementById('auth-msg');
-const dashboard = document.getElementById('dashboard');
-const content = document.getElementById('content');
-const actionBar = document.getElementById('action-bar');
+let dashboard = document.getElementById('dashboard');
+let content = document.getElementById('content');
+let actionBar = document.getElementById('action-bar');
 const drawer = document.getElementById('drawer');
+
+function ensureLayoutNodes() {
+  if (!app) return;
+  if (!dashboard) {
+    dashboard = document.createElement('section');
+    dashboard.id = 'dashboard';
+    dashboard.className = 'card';
+    app.prepend(dashboard);
+  }
+  if (!content) {
+    content = document.createElement('section');
+    content.id = 'content';
+    content.className = 'card';
+    app.appendChild(content);
+  }
+  if (!actionBar) {
+    actionBar = document.createElement('footer');
+    actionBar.id = 'action-bar';
+    actionBar.className = 'action-bar hidden';
+    document.body.appendChild(actionBar);
+  }
+}
 
 function saveDraft() {
   localStorage.setItem('rcontrol_plan_draft', JSON.stringify({ plan: state.plan, items: state.items }));
@@ -41,6 +59,33 @@ function loadDraft() {
   } catch {
     localStorage.removeItem('rcontrol_plan_draft');
   }
+}
+
+async function loadCatalog() {
+  const { data, error } = await sb
+    .from('products')
+    .select('name, category, unit, is_popular')
+    .eq('is_active', true)
+    .order('category')
+    .order('name');
+
+  if (error) {
+    authMsg.textContent = 'Справочник товаров не загружен из базы.';
+    state.categories = {};
+    state.popular = [];
+    return;
+  }
+
+  const categories = {};
+  const popular = [];
+  data.forEach((item) => {
+    if (!categories[item.category]) categories[item.category] = [];
+    categories[item.category].push(item.name);
+    if (item.is_popular && popular.length < 6) popular.push(item.name);
+  });
+
+  state.categories = categories;
+  state.popular = popular;
 }
 
 function setTheme(theme) {
@@ -153,17 +198,17 @@ function renderChefPlan() {
 
     <div class="list-card">
       <h4>Популярные товары</h4>
-      <div class="pill-row">${state.popular.map(p => `<button class="chip" data-pop="${p}" ${state.plan.status !== 'draft' ? 'disabled' : ''}>${p}</button>`).join('')}</div>
+      <div class="pill-row">${state.popular.length ? state.popular.map(p => `<button class="chip" data-pop="${p}" ${state.plan.status !== 'draft' ? 'disabled' : ''}>${p}</button>`).join('') : '<span class="muted">Нет популярных товаров</span>'}</div>
     </div>
 
     <div class="list-card">
       <h4>Категории</h4>
-      ${Object.entries(state.categories).map(([cat, products]) => `
+      ${Object.keys(state.categories).length ? Object.entries(state.categories).map(([cat, products]) => `
         <details class="details">
           <summary>${cat}</summary>
           <div class="pill-row">${products.map(p => `<button class="chip" data-cat="${p}" ${state.plan.status !== 'draft' ? 'disabled' : ''}>${p}</button>`).join('')}</div>
         </details>
-      `).join('')}
+      `).join('') : '<p class="muted">Категории не загружены</p>'}
     </div>
 
     <div class="list-card">
@@ -278,6 +323,7 @@ function renderAnalytics() {
 }
 
 function renderMain() {
+  ensureLayoutNodes();
   renderDashboard();
   if (state.menuMode === 'profile') return renderProfile();
   if (state.menuMode === 'history') return renderHistory();
@@ -296,6 +342,7 @@ async function loadProfile() {
     authCard.classList.add('hidden');
     app.classList.remove('hidden');
     loadDraft();
+    await loadCatalog();
     renderMain();
     return;
   }
@@ -323,16 +370,19 @@ async function loadProfile() {
   authCard.classList.add('hidden');
   app.classList.remove('hidden');
   loadDraft();
+  await loadCatalog();
   renderMain();
 }
 
 setTheme(localStorage.getItem('rcontrol_theme') || 'light');
 themeButtons.forEach(btn => btn.addEventListener('click', () => setTheme(btn.dataset.theme)));
 
-document.getElementById('menu-btn').addEventListener('click', () => drawer.classList.toggle('hidden'));
+const menuBtn = document.getElementById('menu-btn');
+if (menuBtn && drawer) menuBtn.addEventListener('click', () => drawer.classList.toggle('hidden'));
 document.querySelectorAll('[data-menu]').forEach(btn => btn.addEventListener('click', () => setMenu(btn.dataset.menu)));
 
-document.getElementById('login-btn').addEventListener('click', async () => {
+const loginBtn = document.getElementById('login-btn');
+if (loginBtn) loginBtn.addEventListener('click', async () => {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value.trim();
   const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -343,7 +393,8 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('logout-btn').addEventListener('click', async () => {
+const logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) logoutBtn.addEventListener('click', async () => {
   localStorage.removeItem('rcontrol_demo_profile');
   await sb.auth.signOut();
   state.profile = null;
