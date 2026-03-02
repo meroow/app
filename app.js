@@ -1,5 +1,8 @@
-const SUPABASE_URL = globalThis.SUPABASE_URL || 'http://localhost:54321';
-const SUPABASE_ANON_KEY = globalThis.SUPABASE_ANON_KEY || 'public-anon-key';
+const DEFAULT_SUPABASE_URL = 'https://trdwwawnsfokztfrbdmr.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRyZHd3YXduc2Zva3p0ZnJiZG1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNDU4NTQsImV4cCI6MjA4NzgyMTg1NH0.r_sgBwcAofc6aKubWyZJaUKaHcKqTZkl83ikLGXFqmU';
+
+const SUPABASE_URL = globalThis.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const SUPABASE_ANON_KEY = globalThis.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const themeButtons = [...document.querySelectorAll('.segmented-btn')];
@@ -7,6 +10,7 @@ const authCard = document.getElementById('auth-card');
 const appSection = document.getElementById('app');
 const content = document.getElementById('content');
 const roleNav = document.getElementById('role-nav');
+const authMsg = document.getElementById('auth-msg');
 
 const roleViews = {
   chef: ['Сегодня', 'История', 'Аналитика'],
@@ -67,6 +71,14 @@ function renderContent(role, section) {
   `;
 }
 
+function describeAuthError(error) {
+  if (!error) return '';
+  if (error.message?.toLowerCase().includes('failed to fetch')) {
+    return `Сетевая ошибка: не удалось обратиться к Supabase (${SUPABASE_URL}). Проверьте, что на GitHub Pages загружена актуальная версия app.js и отключены блокировщики/прокси.`;
+  }
+  return error.message;
+}
+
 async function loadProfile() {
   const { data: authData } = await sb.auth.getUser();
   if (!authData?.user) {
@@ -77,7 +89,7 @@ async function loadProfile() {
 
   const { data: profile, error } = await sb.from('profiles').select('*').eq('id', authData.user.id).single();
   if (error || !profile) {
-    document.getElementById('auth-msg').textContent = 'Профиль не найден.';
+    authMsg.textContent = 'Профиль не найден.';
     return;
   }
 
@@ -94,7 +106,7 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value.trim();
   const { error } = await sb.auth.signInWithPassword({ email, password });
-  document.getElementById('auth-msg').textContent = error ? error.message : 'Успешный вход';
+  authMsg.textContent = error ? describeAuthError(error) : 'Успешный вход';
   if (!error) loadProfile();
 });
 
