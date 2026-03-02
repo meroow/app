@@ -9,12 +9,22 @@
   </head>
   <body>
     <header class="topbar">
+      <button id="menu-btn" class="icon-btn" aria-label="Открыть меню">☰</button>
       <h1>R-Control</h1>
       <div class="segmented" role="tablist" aria-label="Тема">
-        <button id="theme-light" class="segmented-btn" data-theme="light">Светлая</button>
-        <button id="theme-dark" class="segmented-btn" data-theme="dark">Тёмная</button>
+        <button class="segmented-btn" data-theme="light">Светлая</button>
+        <button class="segmented-btn" data-theme="dark">Тёмная</button>
       </div>
     </header>
+
+    <aside id="drawer" class="drawer hidden">
+      <nav class="drawer-nav">
+        <button data-menu="profile">Профиль</button>
+        <button data-menu="history">История планов</button>
+        <button data-menu="analytics">Аналитика</button>
+        <button id="logout-btn">Выйти</button>
+      </nav>
+    </aside>
 
     <main class="container">
       <section id="auth-card" class="card">
@@ -26,20 +36,12 @@
       </section>
 
       <section id="app" class="hidden">
-        <div class="card">
-          <div class="row-between">
-            <div>
-              <h2 id="welcome"></h2>
-              <p id="role-label" class="muted"></p>
-            </div>
-            <button id="logout-btn">Выйти</button>
-          </div>
-        </div>
-
-        <nav id="role-nav" class="tabs"></nav>
+        <section id="dashboard" class="card"></section>
         <section id="content" class="card"></section>
       </section>
     </main>
+
+    <footer id="action-bar" class="action-bar hidden"></footer>
 
     <script src="./app.js"></script>
   </body>
